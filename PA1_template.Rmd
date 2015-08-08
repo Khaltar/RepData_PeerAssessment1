@@ -1,25 +1,128 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
+title: 'Reproducible Research: Peer Assessment 1'
+output:
   html_document:
-    keep_md: true
+    keep_md: yes
+  pdf_document: default
 ---
 
 
 ## Loading and preprocessing the data
+I will have to set the system locale to English so that I don't have problems showing the days in the plots. I will also load and use the package dplyr because it makes the data.frame much easier to work with. Finally, dates in the original dataset will have to be coerced into Date types since they are read as factors originally.
 
+```{r, echo=TRUE, results='hide'}
+library(dplyr)
+library(lattice)
+
+Sys.setlocale("LC_TIME", "English")
+```
+
+```{r, echo=TRUE}
+
+activity <- read.csv("activity.csv")
+
+tbl_activity <- tbl_df(activity)
+
+str(tbl_activity)
+
+summary(tbl_activity)
+
+tbl_activity$date <- as.Date(tbl_activity$date)
+```
 
 
 ## What is mean total number of steps taken per day?
+I will start by grouping the original data by date and will then summarise the total number of steps taken per day. The histogram will be built and the mean (9354.23) and median (10395) of the total steps will be computed.
+
+```{r, echo=TRUE}
+by_date <- group_by(tbl_activity, date)
+
+head(by_date)
+
+total_steps <- summarise(by_date, total_num_steps_per_day = sum(steps, na.rm=TRUE))
+
+head(total_steps)
+
+hist(total_steps$total_num_steps_per_day, main="Histogram of total number of steps taken per day", xlab="Number of steps taken on a day", col="red")
+
+mean(total_steps$total_num_steps_per_day, na.rm = TRUE)
+
+median(total_steps$total_num_steps_per_day, na.rm = TRUE)
+```
 
 
 
 ## What is the average daily activity pattern?
+Original data will be grouped by interval and the mean steps per interval will be computed. A time-series plot will then be built as instructed. The 5-minute interval that contains, on average, the maximum number of steps is the interval 835 (row 104) corresponding to a mean of 206.1698
 
+```{r, echo=TRUE}
+by_interval <- group_by(tbl_activity, interval)
+
+head(by_interval)
+
+mean_steps <- summarise(by_interval, mean_steps_per_interval = mean(steps,na.rm=TRUE))
+
+head(mean_steps)
+
+plot(mean_steps$interval, mean_steps$mean_steps_per_interval, type="l", main="Time Series Plot of 5-minute
+     interval vs mean of steps taken per interval", xlab="Interval", ylab="Mean of steps")
+
+mean_steps[which.max(mean_steps$mean_steps_per_interval),]
+```
 
 
 ## Imputing missing values
+I will first calculate the total number of missing values in the original data (2304). For filling in the missing values, my strategy will be to use the averages for each 5-minute interval and then compute the total number of steps by grouping the data by date. A new histogram will then be built with the imputed data and by calculating the new mean and median, I will compare it with the last one made.
 
+```{r, echo=TRUE}
+sum(is.na(tbl_activity$steps))
+
+imputed_dataset <- group_by(tbl_activity, interval)
+
+imputed_dataset <- mutate(imputed_dataset, steps= ifelse(is.na(steps), mean(steps, na.rm=TRUE), steps))
+
+head(imputed_dataset)
+
+imputed_dataset1 <- group_by(imputed_dataset, date)
+
+imputed_dataset1 <- summarise(imputed_dataset1, total_steps = sum(steps))
+
+head(imputed_dataset1)
+
+hist(imputed_dataset1$total_steps, main="Histogram of total number of steps taken per day", xlab="Number of steps taken on a day", col="red")
+
+mean(imputed_dataset1$total_steps)
+
+median(imputed_dataset1$total_steps)
+
+```
+
+As seen from the obtained results, imputing for the missing values results into a much less skewed distribution,
+compared to the first one as seen both from analysis of this histogram and also because the median and the mean are
+exactly the same which would not happen in a skewed distribution.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r, echo=TRUE}
+weekdays_data <- imputed_dataset
+
+weekdays_data$Weektime <-  as.factor(ifelse(weekdays(weekdays_data$date) %in%  c("Saturday","Sunday"),"Weekend", "Weekday"))
+
+table(weekdays_data$Weektime)
+
+head(weekdays_data)
+
+by_weektime <- group_by(weekdays_data,Weektime, interval)
+
+head(by_weektime)
+
+mean_weektime <- summarise(by_weektime, average_steps = mean(steps))
+
+head(mean_weektime)
+
+xyplot(average_steps ~ interval | Weektime, mean_weektime, type="l", lwd=1, xlab="Interval in minutes", ylab="Number of Steps on average", layout = c(1,2))
+```
+
+From the analysis of the time series plots we can see that there are differences between the activity levels during weekdays and weekends.
+
